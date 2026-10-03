@@ -1,0 +1,31 @@
+{
+  "id": "/",
+  "name": "ARIN View",
+  "short_name": "ARIN View",
+  "description": "ARIN View — SBS/MBC news auto-refresh dashboard",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fff9f6",
+  "theme_color": "#8d284d",
+  "icons": [
+    {
+      "src": "/arin-sd-icon-192-v2.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/arin-sd-icon-512-v2.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/arin-sd-icon-512-v2.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
