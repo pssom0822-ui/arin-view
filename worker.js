@@ -4,11 +4,12 @@ export default {
     if (url.pathname === '/api/news') return newsResponse();
     if (url.pathname === '/api/morning') return morningResponse();
     if (url.pathname === '/api/market') return marketResponse();
+    if (url.pathname === '/api/premarket') return premarketResponse();
     return env.ASSETS.fetch(request);
   }
 };
 const H={'content-type':'application/json; charset=utf-8','cache-control':'public, max-age=180, stale-while-revalidate=900','access-control-allow-origin':'*'};
-const UA={'user-agent':'ARIN-View/1.3 (+personal PWA)'};
+const UA={'user-agent':'ARIN-View/1.4 (+personal PWA)'};
 function clean(s=''){return s.replace(/<!\[CDATA\[|\]\]>/g,'').replace(/<[^>]+>/g,' ').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&#39;/g,"'").replace(/\s+/g,' ').trim()}
 function dateKR(d){try{return new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(d))}catch{return ''}}
 async function getText(url, timeout=6500){const r=await fetch(url,{headers:UA,signal:AbortSignal.timeout(timeout)});if(!r.ok)throw new Error(`${url} ${r.status}`);return r.text()}
@@ -44,4 +45,14 @@ async function marketResponse(){
  out.note='USD/KRW는 ECB 일일 참고환율 교차계산(EUR 기준 USD·KRW). KOSPI/KOSDAQ은 KRX 승인 전, NASDAQ은 적합한 데이터 라이선스 확보 전 숫자를 표시하지 않습니다.';
  return new Response(JSON.stringify(out),{status:out.usdkrw?200:206,headers:H});
 }
-
+async function yahooQuote(symbol,label){
+ const u=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=5d&interval=1d&includePrePost=true`;
+ const r=await fetch(u,{headers:UA,signal:AbortSignal.timeout(6500)});if(!r.ok)throw new Error(`${symbol} ${r.status}`);const j=await r.json();const x=j?.chart?.result?.[0],q=x?.indicators?.quote?.[0];if(!x||!q)throw new Error(`${symbol} parse`);
+ const rows=(x.timestamp||[]).map((t,i)=>({t,close:Number(q.close?.[i])})).filter(v=>Number.isFinite(v.close));if(!rows.length)throw new Error(`${symbol} empty`);const last=rows.at(-1),prev=rows.at(-2);return {symbol,label,value:last.close,changePct:prev?((last.close-prev.close)/prev.close)*100:null,asOf:new Date(last.t*1000).toISOString(),source:'Yahoo Finance',sourceUrl:`https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}/`};
+}
+async function premarketResponse(){
+ const defs=[['^IXIC','NASDAQ'],['^SOX','SOX'],['NVDA','NVIDIA'],['MU','Micron']];const settled=await Promise.allSettled(defs.map(x=>yahooQuote(x[0],x[1])));const signals={},errors=[];
+ settled.forEach((r,i)=>{const k=['nasdaq','sox','nvda','mu'][i];if(r.status==='fulfilled')signals[k]=r.value;else{signals[k]=null;errors.push(defs[i][1])}});
+ let usdkrw=null;try{usdkrw=await getECBUsdKrw()}catch{errors.push('USD/KRW')}
+ return new Response(JSON.stringify({updatedAt:new Date().toISOString(),signals,usdkrw,kospi200Night:null,kospi200NightStatus:'KRX 야간선물 데이터 연결 대기',note:'미국 지수·종목은 Yahoo Finance 일봉 기준(지연/전일 종가 가능). USD/KRW는 ECB 일일 참고환율. KOSPI200 야간선물은 검증된 KRX 연결 전 숫자를 임의 표시하지 않습니다.',errors}),{status:Object.values(signals).some(Boolean)||usdkrw?200:206,headers:H});
+}
